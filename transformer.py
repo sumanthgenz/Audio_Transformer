@@ -16,6 +16,7 @@ import wandb
 
 
 
+
 import librosa
 import surfboard
 import tensorflow as tf
@@ -77,9 +78,9 @@ class Net(pl.LightningModule):
         self.hidden_size = 80
         self.other_hidden_size = 80
         self.num_classes = 51
-        self.num_epochs = 50
-        self.batch_size = 80
-        self.learning_rate = 0.00018
+        self.num_epochs = 200
+        self.batch_size = 60
+        self.learning_rate = 0.00025
         self.attention_heads = 4
         self.n_layers = 4
 
@@ -163,10 +164,6 @@ class Net(pl.LightningModule):
                                                         collate_fn=self.collate_fn)        
         return self.test_loader
 
-    def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
-        return optimizer
-
     def training_step(self, batch, batch_idx):
         data, target, mask = batch
         mask = mask < 0
@@ -174,23 +171,35 @@ class Net(pl.LightningModule):
 
         loss = self.loss(output, target)
         logs = {'loss': loss}
+        # wandb_logger.agg_and_log_metrics(logs)
         return {'loss': loss, 'log': logs}
 
     def validation_step(self, batch, batch_idx):
+        wandb.init()
         data, target, mask = batch
         mask = mask < 0
         output = self.forward(data, mask)
         temp_loss = self.loss(output, target)
         pred = output.argmax(dim=1, keepdim=True)
         correct = pred.eq(target.view_as(pred)).sum().item()
-        acc = correct/self.batch_size
-        logs = {'val_loss': temp_loss, 'acc': acc}
-        wandb.log(logs)
-        return {'val_loss': temp_loss, 'acc': acc, 'log': logs}
+        acc = torch.tensor(correct/self.batch_size)
+        logs = {'val_loss': temp_loss, 'val_acc': acc}
+        # wandb_logger.agg_and_log_metrics(logs)
+        return {'val_loss': temp_loss, 'val_acc': acc}
+    
+    def validation_epoch_end(self, outputs):
+        # print(outputs)
+        avg_loss = torch.stack([m['val_loss'] for m in outputs]).mean()
+        avg_acc = torch.stack([m['val_acc'] for m in outputs]).mean()
+        logs = {'val_loss': avg_loss, 'val_acc': avg_acc}
+        return {'val_loss': avg_loss, 'log': logs}
+    
+    def configure_optimizers(self):
+        return torch.optim.Adam(self.parameters(), lr=self.learning_rate)
 
 if __name__ == '__main__':
     model = Net()
+    # wandb.watch(model)
     # trainer = pl.Trainer(gpus=4, max_epochs=2, logger=wandb_logger)
-    trainer = pl.Trainer(gpus=1, max_epochs=50, logger=wandb_logger)
+    trainer = pl.Trainer(default_root_dir='/home/sgurram/checkpoint/', gpus=4, max_epochs=5, logger=wandb_logger)
     trainer.fit(model)
-    trainer.save_checkpoint("audioTransformer5.ckpt")
