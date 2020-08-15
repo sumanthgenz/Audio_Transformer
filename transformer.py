@@ -78,23 +78,36 @@ class Net(pl.LightningModule):
         self.hidden_size = 80
         self.other_hidden_size = 80
         self.num_classes = 51
-        self.num_epochs = 200
+        self.num_epochs = 100
         self.batch_size = 60
-        self.learning_rate = 0.00025
+        self.learning_rate = 0.00035
         self.attention_heads = 4
         self.n_layers = 4
 
         self.wav2labelPath = '/home/sgurram/Desktop/wav2LabelDict.pickle'
         self.wav2vecPath = '/home/sgurram/Desktop/wav2VectorDict.pickle'
-        self.loss = nn.CrossEntropyLoss()
+        self.classes = ['BalanceBeam', 'SumoWrestling', 'Surfing', 'WritingOnBoard', 'FloorGymnastics', 
+                        'Rafting', 'FrontCrawl', 'IceDancing', 'ParallelBars', 'BlowingCandles',
+                        'HeadMassage', 'CliffDiving', 'Bowling', 'WallPushups', 'HandstandPushups', 
+                        'Haircut', 'SoccerPenalty', 'TableTennisShot', 'MoppingFloor', 'Knitting', 
+                        'BoxingSpeedBag', 'BandMarching', 'PlayingCello', 'PlayingDhol', 'StillRings', 
+                        'Typing', 'HandstandWalking', 'BabyCrawling', 'PlayingSitar', 'CuttingInKitchen', 
+                        'ApplyEyeMakeup', 'UnevenBars', 'HammerThrow', 'BrushingTeeth', 'BoxingPunchingBag', 
+                        'FrisbeeCatch', 'BlowDryHair', 'PlayingFlute', 'BodyWeightSquats', 'LongJump', 
+                        'CricketShot', 'PlayingDaf', 'Archery', 'BasketballDunk', 'SkyDiving', 'Shotput',
+                         'Hammering', 'ShavingBeard', 'FieldHockeyPenalty', 'ApplyLipstick', 'CricketBowling']
 
         self.fc0 = nn.Linear(self.num_features, self.input_size)
         self.encode = nn.TransformerEncoderLayer(d_model=self.input_size, nhead=self.attention_heads)
         self.transformer = nn.TransformerEncoder(self.encode, num_layers=self.n_layers)
         self.fc1 = nn.Linear(self.input_size, self.hidden_size) 
+        self.dropout = nn.Dropout(p=0.15)
         self.fc2 = nn.Linear(self.hidden_size, self.other_hidden_size)
         self.relu = nn.ReLU()
         self.fc3 = nn.Linear(self.other_hidden_size, self.num_classes)
+        self.loss = nn.CrossEntropyLoss()
+
+
     
     def forward(self, x, mask):
         # expand = self.fc0(x)
@@ -107,7 +120,7 @@ class Net(pl.LightningModule):
 
         expand = self.fc0(x)
         transform = self.transformer(expand, src_key_padding_mask=mask)
-        mean = self.fc1(transform.permute(1, 0, 2).mean(dim=1))
+        mean = self.dropout(self.fc1(transform.permute(1, 0, 2).mean(dim=1)))
         rel = self.relu(mean)
         out = self.fc3(rel)
         return out
@@ -184,7 +197,9 @@ class Net(pl.LightningModule):
         correct = pred.eq(target.view_as(pred)).sum().item()
         acc = torch.tensor(correct/self.batch_size)
         logs = {'val_loss': temp_loss, 'val_acc': acc}
-        # wandb_logger.agg_and_log_metrics(logs)
+        # print(pred.flatten())
+        # print(target)
+        # wandb.sklearn.plot_confusion_matrix(target.cpu().numpy(), pred.flatten().cpu().numpy(), self.classes)
         return {'val_loss': temp_loss, 'val_acc': acc}
     
     def validation_epoch_end(self, outputs):
@@ -195,11 +210,15 @@ class Net(pl.LightningModule):
         return {'val_loss': avg_loss, 'log': logs}
     
     def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters(), lr=self.learning_rate)
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
+        # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer)
+        # scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr=0.001, steps_per_epoch=29, epochs=self.num_epochs)
+        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.02)
+        return [optimizer], [scheduler]
 
 if __name__ == '__main__':
     model = Net()
     # wandb.watch(model)
     # trainer = pl.Trainer(gpus=4, max_epochs=2, logger=wandb_logger)
-    trainer = pl.Trainer(default_root_dir='/home/sgurram/checkpoint/', gpus=4, max_epochs=5, logger=wandb_logger)
+    trainer = pl.Trainer(default_root_dir='/home/sgurram/good-checkpoint/', gpus=4, max_epochs=100, logger=wandb_logger)
     trainer.fit(model)
