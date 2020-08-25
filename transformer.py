@@ -10,6 +10,7 @@ from torch.nn import TransformerEncoder, TransformerEncoderLayer
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import WandbLogger
+#if process0
 wandb_logger = WandbLogger(name='Remote_Audio_Transformer',project='audioFeatureExtraction')
 import wandb
 
@@ -79,7 +80,7 @@ class Net(pl.LightningModule):
         self.other_hidden_size = 80
         self.num_classes = 51
         self.num_epochs = 100
-        self.batch_size = 60
+        self.batch_size = 128
         self.learning_rate = 0.00035
         self.attention_heads = 4
         self.n_layers = 4
@@ -106,6 +107,7 @@ class Net(pl.LightningModule):
         self.relu = nn.ReLU()
         self.fc3 = nn.Linear(self.other_hidden_size, self.num_classes)
         self.loss = nn.CrossEntropyLoss()
+        self.train_dataset, self.test_dataset = self.prepare_data()
 
 
     
@@ -129,7 +131,8 @@ class Net(pl.LightningModule):
         full_dataset = self.AudioDataLoader(self.wav2labelPath, self.wav2vecPath)
         train_size = int(0.8 * len(full_dataset))
         test_size = len(full_dataset) - train_size
-        self.train_dataset, self.test_dataset = torch.utils.data.random_split(full_dataset, [train_size, test_size])
+        # self.train_dataset, self.test_dataset = torch.utils.data.random_split(full_dataset, [train_size, test_size])
+        return torch.utils.data.random_split(full_dataset, [train_size, test_size])
     
     def collate_fn(self, batch):
         def trp(arr, n):
@@ -213,12 +216,16 @@ class Net(pl.LightningModule):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
         # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer)
         # scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr=0.001, steps_per_epoch=29, epochs=self.num_epochs)
-        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.02)
+        # scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.02)
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=100)
         return [optimizer], [scheduler]
 
 if __name__ == '__main__':
     model = Net()
     # wandb.watch(model)
     # trainer = pl.Trainer(gpus=4, max_epochs=2, logger=wandb_logger)
-    trainer = pl.Trainer(default_root_dir='/home/sgurram/good-checkpoint/', gpus=4, max_epochs=100, logger=wandb_logger)
+    trainer = pl.Trainer(default_root_dir='/home/sgurram/good-checkpoint/', gpus=4, max_epochs=100, logger=wandb_logger, distributed_backend='ddp')
+    # trainer = pl.Trainer(default_root_dir='/home/sgurram/good-checkpoint/', gpus=4, max_epochs=100, logger=wandb_logger, precision=16)
+    #https://github.com/NVIDIA/apex (precision=16)
+    # trainer = pl.Trainer(default_root_dir='/home/sgurram/good-checkpoint/', gpus=4, max_epochs=100, logger=wandb_logger, distributed_backend='ddp2')
     trainer.fit(model)
