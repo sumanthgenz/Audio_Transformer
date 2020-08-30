@@ -13,6 +13,10 @@ from pytorch_lightning.loggers import WandbLogger
 #if process0
 wandb_logger = WandbLogger(name='Remote_Audio_Transformer',project='audioFeatureExtraction')
 import wandb
+import gc 
+
+# gc.collect()
+# torch.cuda.empty_cache()
 
 
 
@@ -30,6 +34,8 @@ from surfboard.feature_extraction import extract_features
 import numpy as np
 import os
 import pickle
+
+
 class Net(pl.LightningModule):
 
     class AudioDataLoader(Dataset):
@@ -81,7 +87,7 @@ class Net(pl.LightningModule):
         self.num_classes = 51
         self.num_epochs = 100
         self.batch_size = 128
-        self.learning_rate = 0.00035
+        self.learning_rate = 0.00085
         self.attention_heads = 4
         self.n_layers = 4
 
@@ -169,7 +175,8 @@ class Net(pl.LightningModule):
         self.train_loader = torch.utils.data.DataLoader(dataset=self.train_dataset, 
                                                         batch_size=self.batch_size, 
                                                         shuffle=True,
-                                                        collate_fn=self.collate_fn)
+                                                        collate_fn=self.collate_fn,
+                                                        num_workers=20)
         return self.train_loader
 
 
@@ -177,7 +184,8 @@ class Net(pl.LightningModule):
         self.test_loader = torch.utils.data.DataLoader(dataset=self.test_dataset, 
                                                         batch_size=self.batch_size, 
                                                         shuffle=True,
-                                                        collate_fn=self.collate_fn)        
+                                                        collate_fn=self.collate_fn,
+                                                        num_workers=20)        
         return self.test_loader
 
     def training_step(self, batch, batch_idx):
@@ -224,7 +232,7 @@ if __name__ == '__main__':
     model = Net()
     # wandb.watch(model)
     # trainer = pl.Trainer(gpus=4, max_epochs=2, logger=wandb_logger)
-    trainer = pl.Trainer(default_root_dir='/home/sgurram/good-checkpoint/', gpus=4, max_epochs=100, logger=wandb_logger, distributed_backend='ddp')
+    trainer = pl.Trainer(default_root_dir='/home/sgurram/good-checkpoint/', gpus=[2,3], max_epochs=100, logger=wandb_logger, accumulate_grad_batches=2, distributed_backend='ddp')
     # trainer = pl.Trainer(default_root_dir='/home/sgurram/good-checkpoint/', gpus=4, max_epochs=100, logger=wandb_logger, precision=16)
     #https://github.com/NVIDIA/apex (precision=16)
     # trainer = pl.Trainer(default_root_dir='/home/sgurram/good-checkpoint/', gpus=4, max_epochs=100, logger=wandb_logger, distributed_backend='ddp2')
