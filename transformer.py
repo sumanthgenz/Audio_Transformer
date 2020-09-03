@@ -90,6 +90,7 @@ class Net(pl.LightningModule):
         self.learning_rate = 0.00085
         self.attention_heads = 4
         self.n_layers = 4
+        self.counter = 0
 
         self.wav2labelPath = '/home/sgurram/Desktop/wav2LabelDict.pickle'
         self.wav2vecPath = '/home/sgurram/Desktop/wav2VectorDict.pickle'
@@ -210,11 +211,14 @@ class Net(pl.LightningModule):
         logs = {'val_loss': temp_loss, 'val_acc': acc}
         # print(pred.flatten())
         # print(target)
-        # wandb.sklearn.plot_confusion_matrix(target.cpu().numpy(), pred.flatten().cpu().numpy(), self.classes)
+        if self.counter == self.num_epochs - 1:
+            print(self.counter)
+            wandb.sklearn.plot_confusion_matrix(target.cpu().numpy(), pred.flatten().cpu().numpy(), self.classes)
         return {'val_loss': temp_loss, 'val_acc': acc}
     
     def validation_epoch_end(self, outputs):
         # print(outputs)
+        self.counter += 1
         avg_loss = torch.stack([m['val_loss'] for m in outputs]).mean()
         avg_acc = torch.stack([m['val_acc'] for m in outputs]).mean()
         logs = {'val_loss': avg_loss, 'val_acc': avg_acc}
@@ -225,8 +229,11 @@ class Net(pl.LightningModule):
         # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer)
         # scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr=0.001, steps_per_epoch=29, epochs=self.num_epochs)
         # scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.02)
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=100)
-        return [optimizer], [scheduler]
+        # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=100)
+        # scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[70,80, 85, 90, 95], gamma=0.1)
+        # return [optimizer], [scheduler]
+        return optimizer
+
 
 if __name__ == '__main__':
     model = Net()
