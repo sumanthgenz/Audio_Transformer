@@ -43,10 +43,12 @@ def store_classes(rootdir):
         classes.append(subdir)
     classes.remove(rootdir)
     return classes
-    
 
-def get_audio_features(rootdir):
-    classes = store_classes(rootdir)
+def populate_spec_savedir(savedir):
+    for subfolder_name in classes:
+        os.makedirs(os.path.join(savedir, subfolder_name))
+    
+def get_audio_features(rootdir, classes):
     labelDict = {}
     vectorDict = {}
 
@@ -62,18 +64,62 @@ def get_audio_features(rootdir):
         if count % 1000 == 0:
             print("1000 done")
     return labelDict, vectorDict
+
+def get_mel_spec(rootdir, savedir, classes):
+    spec2LabelDict = {}
+    spec2VectorDict = {}
+    count = 0
+    for subdir, dirs, files in os.walk(rootdir):
+        for f in files:
+            wav_path = os.path.join(rootdir, subdir, f)
             
-def save_data(labelPath, vectorPath):
-    with open('labelPath.pickle', 'wb') as handle:
+            #might need subdir.split("/")[-1]
+            spec_path = os.path.join(savedir, subdir, f.split(".")[0])
+
+            try:
+                count += 1
+                (sig, rate) = librosa.load(wav_path)
+                fig = plt.figure(figsize=[0.5,0.5])
+                ax = fig.add_subplot(111)
+                ax.axes.get_xaxis().set_visible(False)
+                ax.axes.get_yaxis().set_visible(False)
+                ax.set_frame_on(False)
+                S = librosa.feature.melspectrogram(y=sig, sr=rate, n_mels=512)
+                librosa.display.specshow(librosa.power_to_db(S, ref=np.max))
+                plt.savefig(spec_path, dpi=400, bbox_inches='tight',pad_inches=0)
+                plt.close('all')
+                
+                #might need subdir.split("/")[-1]
+                spec2LabelDict[spec_path] = classes.index(subdir.split("/")[-1])
+                spec2VectorDict[spec_path] = np.array(Image.open(spec_path + ".png").convert('RGB').resize((150, 150)))/255
+                
+            except:
+                print("bad file: " + wav_path)
+            if count % 1000 == 0:
+                print("1000 done")
+    return spec2LabelDict, spec2VectorDict
+            
+def save_data(labels, vectors, labelPath, vectorPath):
+    with open(labelPath + '.pickle', 'wb') as handle:
         pickle.dump(labelPath, handle, protocol=pickle.HIGHEST_PROTOCOL)
     
-    with open('vectorPath.pickle', 'wb') as handle:
+    with open(vectorPath + '.pickle', 'wb') as handle:
         pickle.dump(vectorPath, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-rootdir = '/Users/sumanthgurram/Desktop/WAV'
-store_classes(rootdir)
-labels, vectors = get_audio_features(rootdir)
-save_data(labels, vectors)
+rootdir = 'WAV'
+savedir = "UCF-101-SPEC"
+
+classes = store_classes(rootdir)
+populate_spec_savedir(savedir)
+mfcc_labels, mfcc_vectors = get_audio_features(rootdir, classes)
+spec_labels, spec_vectors = get_mel_spec(rootdir, savedir, classes)
+save_data(mfcc_labels, mfcc_vectors, "mfccLabels", "mfccVectors")
+save_data(spec_labels, spec_vectors, "specLabels", "specVectors")
+
+# chmod +x convert.sh
+# ./avitomp3.sh UCF-101/ WAV/
+# ./mp3-wav.sh MP3/ WAV/
+# ./convert.sh UCF-101/ WAV/
 
 
 # vector = audio_extract("/Users/sumanthgurram/Desktop/WAV/SumoWrestling/v_SumoWrestling_g01_c01.wav").T
