@@ -4,6 +4,5 @@ chmod +x avi-mp3-wav.sh
 
 DEPCRECATED:
 ./avi-mp3-wav.sh UCF-101/ MP3/
-
 ./avi-mp3-wav.sh MP3/ WAV/
 
