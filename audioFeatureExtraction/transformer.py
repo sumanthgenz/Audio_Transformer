@@ -48,7 +48,7 @@ class Net(pl.LightningModule):
             except :
                 print("Error processing files: {}, {}".format(wav2LabelDictPath, wav2VectorDictPath))
             self.count = 0
-            self.len = len(self.wav2LabelDict.keys())
+            self.num_elems = len(self.wav2LabelDict.keys())
             self.idx2wav = {}
             self.labels = []
             self.sizes = []
@@ -62,7 +62,7 @@ class Net(pl.LightningModule):
                 self.labels.append(self.wav2LabelDict[wav])
 
         def __len__(self):
-            return self.len
+            return self.num_elems
 
         def getNumClasses(self):
             return len(Counter(self.labels))
