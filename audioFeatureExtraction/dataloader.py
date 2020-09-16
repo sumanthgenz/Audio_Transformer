@@ -27,7 +27,7 @@ class AudioDataLoader(Dataset):
             self.count = 0
             self.len = len(self.wav2LabelDict.keys())
             self.idx2wav = {}
-            self.Labels = []
+            self.labels = []
             self.sizes = []
             for k, v in self.wav2VectorDict.items():
                 self.sizes.append(v.shape[1])
