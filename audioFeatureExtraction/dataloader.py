@@ -25,7 +25,7 @@ class AudioDataLoader(Dataset):
             except :
                 print("Error processing files: {}, {}".format(wav2LabelDictPath, wav2VectorDictPath))
             self.count = 0
-            self.len = len(self.wav2LabelDict.keys())
+            self.num_elems = len(self.wav2LabelDict.keys())
             self.idx2wav = {}
             self.labels = []
             self.sizes = []
@@ -37,3 +37,16 @@ class AudioDataLoader(Dataset):
             for idx, wav in enumerate(self.wav2LabelDict.keys()):
                 self.idx2wav[idx] = wav
                 self.labels.append(self.wav2LabelDict[wav])
+
+        def __len__(self):
+            return self.num_elems
+
+        def getNumClasses(self):
+            return len(Counter(self.labels))
+
+        def __getitem__(self, idx):
+            wav = self.idx2wav[idx]
+            vec = self.wav2VectorDict[wav]
+            lab = self.wav2LabelDict[wav]
+            to_pad = self.max_size - vec.shape[1]
+            return vec, lab, self.max_size
