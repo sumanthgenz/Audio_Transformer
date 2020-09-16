@@ -46,7 +46,7 @@ class Net(pl.LightningModule):
                 with open(wav2VectorDictPath, 'rb') as handle:
                     self.wav2VectorDict = pickle.load(handle)
             except :
-                raise Exception('Invalid path')
+                print("Error processing files: {}, {}".format(wav2LabelDictPath, wav2VectorDictPath))
             self.count = 0
             self.len = len(self.wav2LabelDict.keys())
             self.idx2wav = {}
