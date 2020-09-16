@@ -1,9 +1,5 @@
-
 import torch
 from torch.utils.data import Dataset, DataLoader
-# from torchvision import transforms, utils
-import pickle
-from collections import Counter
 import torch.nn as nn
 import torchvision
 import torchvision.transforms as transforms
@@ -11,20 +7,11 @@ from torch.nn import TransformerEncoder, TransformerEncoderLayer
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import WandbLogger
-#if process0
-wandb_logger = WandbLogger(name='Remote_Audio_Transformer',project='audioFeatureExtraction')
-import wandb
-import gc 
-
-# gc.collect()
-# torch.cuda.empty_cache()
-
 
 
 
 import librosa
 import surfboard
-import tensorflow as tf
 import openpyxl
 import torch
 import numpy
@@ -37,20 +24,14 @@ import pickle
 from collections import Counter
 import matplotlib.pyplot as plt
 import plotly
+import wandb
+import gc 
 
 
+wandb_logger = WandbLogger(name='Remote_Audio_Transformer',project='audioFeatureExtraction')
 np.warnings.filterwarnings('ignore', category=np.VisibleDeprecationWarning)
-
-classes = ['BalanceBeam', 'SumoWrestling', 'Surfing', 'WritingOnBoard', 'FloorGymnastics', 
-                        'Rafting', 'FrontCrawl', 'IceDancing', 'ParallelBars', 'BlowingCandles',
-                        'HeadMassage', 'CliffDiving', 'Bowling', 'WallPushups', 'HandstandPushups', 
-                        'Haircut', 'SoccerPenalty', 'TableTennisShot', 'MoppingFloor', 'Knitting', 
-                        'BoxingSpeedBag', 'BandMarching', 'PlayingCello', 'PlayingDhol', 'StillRings', 
-                        'Typing', 'HandstandWalking', 'BabyCrawling', 'PlayingSitar', 'CuttingInKitchen', 
-                        'ApplyEyeMakeup', 'UnevenBars', 'HammerThrow', 'BrushingTeeth', 'BoxingPunchingBag', 
-                        'FrisbeeCatch', 'BlowDryHair', 'PlayingFlute', 'BodyWeightSquats', 'LongJump', 
-                        'CricketShot', 'PlayingDaf', 'Archery', 'BasketballDunk', 'SkyDiving', 'Shotput',
-                         'Hammering', 'ShavingBeard', 'FieldHockeyPenalty', 'ApplyLipstick', 'CricketBowling']
+# gc.collect()
+# torch.cuda.empty_cache()
 
 class Net(pl.LightningModule):
 
@@ -69,7 +50,7 @@ class Net(pl.LightningModule):
             self.count = 0
             self.len = len(self.wav2LabelDict.keys())
             self.idx2wav = {}
-            self.Labels = []
+            self.labels = []
             self.sizes = []
             for k, v in self.wav2VectorDict.items():
                 self.sizes.append(v.shape[1])
@@ -78,13 +59,13 @@ class Net(pl.LightningModule):
 
             for idx, wav in enumerate(self.wav2LabelDict.keys()):
                 self.idx2wav[idx] = wav
-                self.Labels.append(self.wav2LabelDict[wav])
+                self.labels.append(self.wav2LabelDict[wav])
 
         def __len__(self):
             return self.len
 
         def getNumClasses(self):
-            return len(Counter(self.Labels))
+            return len(Counter(self.labels))
 
         def __getitem__(self, idx):
             wav = self.idx2wav[idx]
@@ -283,13 +264,11 @@ class Net(pl.LightningModule):
 if __name__ == '__main__':
     
     model = Net()
-
-
     # wandb.watch(model)
     # trainer = pl.Trainer(gpus=4, max_epochs=2, logger=wandb_logger)
-    trainer = pl.Trainer(default_root_dir='/home/sgurram/good-checkpoint/', gpus=[2,3], max_epochs=100, logger=wandb_logger, accumulate_grad_batches=2, distributed_backend='ddp')
     # trainer = pl.Trainer(default_root_dir='/home/sgurram/good-checkpoint/', gpus=4, max_epochs=100, logger=wandb_logger, precision=16)
     #https://github.com/NVIDIA/apex (precision=16)
     # trainer = pl.Trainer(default_root_dir='/home/sgurram/good-checkpoint/', gpus=4, max_epochs=100, logger=wandb_logger, distributed_backend='ddp2')
+    trainer = pl.Trainer(default_root_dir='/home/sgurram/good-checkpoint/', gpus=[2,3], max_epochs=1, logger=wandb_logger, accumulate_grad_batches=2, distributed_backend='ddp')
     trainer.fit(model)
     
