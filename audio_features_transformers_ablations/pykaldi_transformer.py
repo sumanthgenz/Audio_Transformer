@@ -134,16 +134,18 @@ class Net(pl.LightningModule):
     def __init__(self):
         super(Net, self).__init__()
         self.num_features = 13
+        self.input_size_half = 256
         self.input_size = 512
         self.seq_len = 500
-        self.hidden_size = 1024
-        self.other_hidden_size = 1024
+        self.hidden_size_1 = 1024
+        self.hidden_size_2 = 2048
+        self.hidden_size_3 = 1024
         self.num_classes = 700
         self.num_epochs = 100
         self.batch_size = 16
-        self.learning_rate = 0.00000025
-        self.attention_heads = 4
-        self.n_layers = 4
+        self.learning_rate = 0.00025
+        self.attention_heads = 8
+        self.n_layers = 16
         self.counter = 0
 
         self.trainPath = 'train'
@@ -152,14 +154,30 @@ class Net(pl.LightningModule):
         self.classes = self.get_pickle("classes_dict")
 
         
-        self.fc0 = nn.Linear(self.num_features, self.input_size)
-        self.encode = nn.TransformerEncoderLayer(d_model=self.input_size, nhead=self.attention_heads)
+        
+        self.encode = nn.TransformerEncoderLayer(d_model=self.input_size, nhead=self.attention_heads, dropout=0.15)
         self.transformer = nn.TransformerEncoder(self.encode, num_layers=self.n_layers)
-        self.fc1 = nn.Linear(self.input_size, self.hidden_size) 
+
+        self.fc0 = nn.Linear(self.num_features, self.input_size_half)
+        self.fc1 = nn.Linear(self.input_size_half, self.input_size)
+        self.fc2 = nn.Linear(self.input_size, self.hidden_size_1) 
+        self.fc3 = nn.Linear(self.hidden_size_1, self.hidden_size_2)
+        self.fc4 = nn.Linear(self.hidden_size_2, self.hidden_size_3)
+        self.fc5 = nn.Linear(self.hidden_size_3, self.num_classes)
+
+        self.old_fc4 = nn.Linear(self.hidden_size_1, self.num_classes)
+
+
+        self.norm1 = nn.LayerNorm(self.input_size_half)
+        self.norm2 = nn.LayerNorm(self.input_size)
+        self.norm3 = nn.LayerNorm(self.hidden_size_1)
+        self.norm4 = nn.LayerNorm(self.hidden_size_2)
+        self.norm5 = nn.LayerNorm(self.hidden_size_3)
+
+
         self.dropout = nn.Dropout(p=0.15)
-        self.fc2 = nn.Linear(self.hidden_size, self.other_hidden_size)
         self.relu = nn.ReLU()
-        self.fc3 = nn.Linear(self.other_hidden_size, self.num_classes)
+
         self.loss = nn.CrossEntropyLoss()
 
         self.train_test_split_pct = 0.8
@@ -189,11 +207,29 @@ class Net(pl.LightningModule):
         
     
     def forward(self, x, mask):
+        # expand = self.fc0(x)
+        # transform = self.transformer(expand, src_key_padding_mask=mask)
+        # mean = self.dropout(self.fc2(transform.permute(1, 0, 2).mean(dim=1)))
+        # rel = self.relu(mean)
+        # out = self.old_fc4(rel)
+        # return out
+
         expand = self.fc0(x)
-        transform = self.transformer(expand, src_key_padding_mask=mask)
-        mean = self.dropout(self.fc1(transform.permute(1, 0, 2).mean(dim=1)))
-        rel = self.relu(mean)
-        out = self.fc3(rel)
+        expand = self.norm1(self.dropout(expand))
+        expand2 = self.fc1(expand)
+        src = self.norm2(self.dropout(expand2))
+
+        transform = self.transformer(src, src_key_padding_mask=mask)
+
+        transform = self.relu(self.fc2(transform.permute(1, 0, 2).mean(dim=1)))
+        transform = transform + self.dropout(transform)
+        transform = self.norm3(transform)
+
+        out = self.fc4(self.dropout(self.relu(self.fc3(transform))))
+        out = transform + self.dropout(out)
+        out = self.norm3(out)
+        out = self.fc5(out)
+        
         return out
 
     def prepare_data(self):
@@ -226,7 +262,7 @@ class Net(pl.LightningModule):
             return result
         
         batch = np.transpose(batch)
-        print(batch[0][0].shape)
+        # print(batch[0][0].shape)
         data = list(filter(lambda x: x is not None, batch[0]))
         labels = list(filter(lambda x: x is not None, batch[1]))
 
@@ -259,7 +295,7 @@ class Net(pl.LightningModule):
         return self.test_loader
 
     def training_step(self, batch, batch_idx):
-        print(batch)
+        # print(batch)
         data, target, mask = batch
         mask = mask < 0
         output = self.forward(data, mask)
@@ -315,15 +351,40 @@ if __name__ == '__main__':
     
 
     model = Net()
-    # wandb.watch(model)
+    wandb_logger.watch(model, log='gradients', log_freq=10)
     # trainer = pl.Trainer(gpus=4, max_epochs=2, logger=wandb_logger)
     # trainer = pl.Trainer(default_root_dir='/home/sgurram/good-checkpoint/', gpus=4, max_epochs=100, logger=wandb_logger, precision=16)
     #https://github.com/NVIDIA/apex (precision=16)
     # trainer = pl.Trainer(default_root_dir='/home/sgurram/good-checkpoint/', gpus=4, max_epochs=100, logger=wandb_logger, distributed_backend='ddp2')
     
-    # trainer = pl.Trainer(default_root_dir='/home/sgurram/good-checkpoint/', auto_lr_find=True, gpus=[2,3], overfit_batches=10, max_epochs=100, logger=wandb_logger, accumulate_grad_batches=1, distributed_backend='ddp')
-    trainer = pl.Trainer(default_root_dir='/home/sgurram/good-checkpoint/', gpus=[2,3], overfit_batches=1, max_epochs=1, logger=wandb_logger, accumulate_grad_batches=1, distributed_backend='ddp')
+    # trainer = pl.Trainer(
+    #     default_root_dir='/home/sgurram/good-checkpoint/', 
+    #     auto_lr_find=True, gpus=[2,3], 
+    #     overfit_batches=10, 
+    #     max_epochs=100, 
+    #     logger=wandb_logger, 
+    #     accumulate_grad_batches=1, 
+    #     distributed_backend='ddp')
+
+   
+    trainer = pl.Trainer(
+        default_root_dir='/home/sgurram/good-checkpoint/', 
+        gpus=[0, 1, 2,3], 
+        overfit_batches=10, 
+        max_epochs=50, 
+        logger=wandb_logger, 
+        accumulate_grad_batches=1, 
+        distributed_backend='ddp')
     
+
+    # trainer = pl.Trainer(
+    #     default_root_dir='/home/sgurram/good-checkpoint/', 
+    #     gpus=[0, 1, 2,3], 
+    #     max_epochs=50, 
+    #     logger=wandb_logger, 
+    #     accumulate_grad_batches=200, 
+    #     distributed_backend='ddp')
+
     # lr_finder = trainer.tuner.lr_find(model)
     # lr_finder.results
     # new_lr = lr_finder.suggestion()
