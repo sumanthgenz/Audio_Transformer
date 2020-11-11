@@ -40,6 +40,8 @@ import wandb
 import gc 
 
 import torchaudio
+print(torch.__version__)
+print(pl.__version__)
 
 # import kaldi
 # from kaldi.matrix import Matrix
@@ -125,7 +127,7 @@ class Net(pl.LightningModule):
                 # feat = np.transpose(np.array(self.mfcc.compute_features(matrix, self.samp_freq, 1.0)))
 
                 wav, samp_freq = torchaudio.load(filePath)
-                feat = np.transpose(np.array(torchaudio.compliance.kaldi.mfcc(wav, sample_frequency=self.samp_freq)))
+                feat = np.transpose(np.array(torchaudio.transforms.MFCC(sample_rate=self.samp_freq)(wav)))
                 return feat, num_label, self.seq_len
 
             except:
@@ -351,7 +353,7 @@ if __name__ == '__main__':
     
 
     model = Net()
-    wandb_logger.watch(model, log='gradients', log_freq=10)
+    # wandb_logger.watch(model, log='gradients', log_freq=10)
     # trainer = pl.Trainer(gpus=4, max_epochs=2, logger=wandb_logger)
     # trainer = pl.Trainer(default_root_dir='/home/sgurram/good-checkpoint/', gpus=4, max_epochs=100, logger=wandb_logger, precision=16)
     #https://github.com/NVIDIA/apex (precision=16)
@@ -369,7 +371,7 @@ if __name__ == '__main__':
    
     trainer = pl.Trainer(
         default_root_dir='/home/sgurram/good-checkpoint/', 
-        gpus=[0, 1, 2,3], 
+        gpus=4, 
         overfit_batches=10, 
         max_epochs=50, 
         logger=wandb_logger, 
@@ -391,4 +393,3 @@ if __name__ == '__main__':
 
     
     trainer.fit(model)
-    #Test git push
