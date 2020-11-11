@@ -17,17 +17,21 @@ import wandb
 
 
 import librosa
-import surfboard
-import tensorflow as tf
+# import tensorflow as tf
 import openpyxl
 import torch
 import numpy
 import sklearn
-from surfboard.sound import Waveform
-from surfboard.feature_extraction import extract_features
+# import surfboard
+# from surfboard.sound import Waveform
+# from surfboard.feature_extraction import extract_features
 import numpy as np
 import os
 import pickle
+
+print(torch.__version__)
+print(pl.__version__)
+
 class Net(pl.LightningModule):
 
     class AudioDataLoader(Dataset):
@@ -94,6 +98,7 @@ class Net(pl.LightningModule):
         self.fc2 = nn.Linear(self.hidden_size, self.other_hidden_size)
         self.relu = nn.ReLU()
         self.fc3 = nn.Linear(self.other_hidden_size, self.num_classes)
+        self.train_dataset, self.test_dataset = self.prepare_data()
     
     def forward(self, x, mask):
         # expand = self.fc0(x)
@@ -115,7 +120,7 @@ class Net(pl.LightningModule):
         full_dataset = self.AudioDataLoader(self.wav2labelPath, self.wav2vecPath)
         train_size = int(0.8 * len(full_dataset))
         test_size = len(full_dataset) - train_size
-        self.train_dataset, self.test_dataset = torch.utils.data.random_split(full_dataset, [train_size, test_size])
+        return torch.utils.data.random_split(full_dataset, [train_size, test_size])
     
     def collate_fn(self, batch):
         def trp(arr, n):
@@ -185,12 +190,11 @@ class Net(pl.LightningModule):
         correct = pred.eq(target.view_as(pred)).sum().item()
         acc = correct/self.batch_size
         logs = {'val_loss': temp_loss, 'acc': acc}
-        wandb.log(logs)
-        return {'val_loss': temp_loss, 'acc': acc, 'log': logs}
+        return {'val_loss': temp_loss, 'acc': acc}
 
 if __name__ == '__main__':
     model = Net()
     # trainer = pl.Trainer(gpus=4, max_epochs=2, logger=wandb_logger)
-    trainer = pl.Trainer(gpus=1, max_epochs=50, logger=wandb_logger)
+    trainer = pl.Trainer(gpus=[0, 1, 2, 3], max_epochs=50, logger=wandb_logger, distributed_backend='ddp')
     trainer.fit(model)
     trainer.save_checkpoint("audioTransformer5.ckpt")
