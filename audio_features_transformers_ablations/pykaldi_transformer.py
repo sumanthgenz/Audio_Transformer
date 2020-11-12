@@ -58,6 +58,9 @@ print(pl.__version__)
 
 wandb_logger = WandbLogger(name='audio_self_supervised_run',project='kinetics-ablation')
 np.warnings.filterwarnings('ignore', category=np.VisibleDeprecationWarning)
+warnings.filterwarnings("ignore")
+
+
 # gc.collect()
 # torch.cuda.empty_cache()
 
@@ -69,10 +72,10 @@ class Net(pl.LightningModule):
     
         def __init__(self, csvType):
             self.csvType = csvType
-            self.dir = "/data3/kinetics_pykaldi/{}".format(csvType)
+            self.dir = "/ssd/kinetics_pykaldi/{}".format(csvType)
             self.num_classes = 700
-            self.downsamp_factor = 2
-            self.samp_freq = 22050*4
+            self.downsamp_factor = 4
+            self.samp_freq = 16000
             self.seq_len = 500
             self.wav_paths = self.create_pykaldi_scp_file()
 
@@ -128,7 +131,10 @@ class Net(pl.LightningModule):
 
                 #Updated torchaudio MFCC
                 wav, samp_freq = torchaudio.load(filePath)
-                feat = np.transpose(np.array(torchaudio.transforms.MFCC(sample_rate=self.samp_freq)(wav)))
+                wav = (wav.mean(dim=0))[::self.downsamp_factor]
+                feat = np.array((torchaudio.transforms.MFCC(sample_rate=self.samp_freq)(wav.unsqueeze(0))).mean(dim=0))
+                # feat = np.transpose(np.array(torchaudio.compliance.kaldi.mfcc(wav, sample_frequency=self.samp_freq)))
+                # print(feat.shape)
                 return feat, num_label, self.seq_len
 
             except:
@@ -136,7 +142,7 @@ class Net(pl.LightningModule):
 
     def __init__(self):
         super(Net, self).__init__()
-        self.num_features = 13
+        self.num_features = 40
         self.input_size_half = 256
         self.input_size = 512
         self.seq_len = 500
@@ -145,7 +151,7 @@ class Net(pl.LightningModule):
         self.hidden_size_3 = 1024
         self.num_classes = 700
         self.num_epochs = 100
-        self.batch_size = 16
+        self.batch_size = 8
         self.learning_rate = 0.00025
         self.attention_heads = 8
         self.n_layers = 16
@@ -318,8 +324,8 @@ class Net(pl.LightningModule):
         # print(target)
         correct = pred.eq(target.view_as(pred)).sum().item()
         acc = torch.tensor(correct/self.batch_size)
-        if correct > 0:
-            print(acc)
+        # if correct > 0:
+        #     print(acc)
         logs = {'val_loss': temp_loss, 'val_acc': acc}
 
         # if self.counter >= self.num_epochs-1:
@@ -372,13 +378,11 @@ if __name__ == '__main__':
    
     trainer = pl.Trainer(
         default_root_dir='/home/sgurram/Projects/audio_transformer_supervised/audio_features_transformers_ablations/good-checkpoint', 
-        gpus=2, 
+        gpus=1, 
         overfit_batches=10, 
-        max_epochs=50, 
+        max_epochs=5, 
         logger=wandb_logger, 
-        accumulate_grad_batches=1, 
-        distributed_backend='ddp')
-    
+        accumulate_grad_batches=1)    
 
     # trainer = pl.Trainer(
     #     default_root_dir='/home/sgurram/good-checkpoint/', 
