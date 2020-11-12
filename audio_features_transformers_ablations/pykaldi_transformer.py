@@ -56,7 +56,7 @@ print(pl.__version__)
 # import kaldiio
 
 
-wandb_logger = WandbLogger(name='Remote_Audio_Transformer',project='kinetics-ablation')
+wandb_logger = WandbLogger(name='audio_self_supervised_run',project='kinetics-ablation')
 np.warnings.filterwarnings('ignore', category=np.VisibleDeprecationWarning)
 # gc.collect()
 # torch.cuda.empty_cache()
@@ -104,7 +104,7 @@ class Net(pl.LightningModule):
 
 
         def get_pickle(self, classPath):
-            with open('Desktop/kinetics_{}.pickle'.format(classPath), 'rb') as handle:
+            with open('Desktop/kinetics/kinetics_{}.pickle'.format(classPath), 'rb') as handle:
                 result = pickle.load(handle)
             return result
         
@@ -193,7 +193,7 @@ class Net(pl.LightningModule):
      
 
     def get_pickle(self, classPath):
-            with open('Desktop/kinetics_{}.pickle'.format(classPath), 'rb') as handle:
+            with open('Desktop/kinetics/kinetics_{}.pickle'.format(classPath), 'rb') as handle:
                 result = pickle.load(handle)
             return result
 
@@ -371,8 +371,8 @@ if __name__ == '__main__':
 
    
     trainer = pl.Trainer(
-        default_root_dir='/home/sgurram/good-checkpoint/', 
-        gpus=4, 
+        default_root_dir='/home/sgurram/Projects/audio_transformer_supervised/audio_features_transformers_ablations/good-checkpoint', 
+        gpus=2, 
         overfit_batches=10, 
         max_epochs=50, 
         logger=wandb_logger, 
