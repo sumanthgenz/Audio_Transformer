@@ -126,6 +126,7 @@ class Net(pl.LightningModule):
                 # matrix = SubVector(mean(signal, axis=0))
                 # feat = np.transpose(np.array(self.mfcc.compute_features(matrix, self.samp_freq, 1.0)))
 
+                #Updated torchaudio MFCC
                 wav, samp_freq = torchaudio.load(filePath)
                 feat = np.transpose(np.array(torchaudio.transforms.MFCC(sample_rate=self.samp_freq)(wav)))
                 return feat, num_label, self.seq_len
