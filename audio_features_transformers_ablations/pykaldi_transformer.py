@@ -311,7 +311,7 @@ class Net(pl.LightningModule):
                                                         batch_size=self.batch_size, 
                                                         shuffle=False,
                                                         collate_fn=self.collate_fn,
-                                                        num_workers=16)
+                                                        num_workers=12)
         return self.train_loader
 
 
@@ -320,7 +320,7 @@ class Net(pl.LightningModule):
                                                         batch_size=self.batch_size, 
                                                         shuffle=False,
                                                         collate_fn=self.collate_fn,
-                                                        num_workers=16)        
+                                                        num_workers=12)        
         return self.test_loader
 
     def training_step(self, batch, batch_idx):
@@ -342,8 +342,10 @@ class Net(pl.LightningModule):
         pred = output.argmax(dim=1, keepdim=True)
         # print(pred)
         # print(target)
-        correct = pred.eq(target.view_as(pred)).sum().item()
-        acc = torch.tensor(correct/self.batch_size)
+
+        # correct = pred.eq(target.view_as(pred)).sum().item()
+        # acc = torch.tensor(correct/self.batch_size)
+
         # if correct > 0:
         #     print(acc)
         top_1_accuracy = self.compute_accuracy(output, target, top_k=1)
@@ -354,7 +356,6 @@ class Net(pl.LightningModule):
 
         logs = {
             'val_loss': temp_loss,
-            'val_acc': acc,
             'val_top_1': top_1_accuracy,
             'val_top_5': top_5_accuracy,
             'val_mAP' : mAP}
@@ -372,14 +373,12 @@ class Net(pl.LightningModule):
         #     wandb.sklearn.plot_confusion_matrix(np.hstack(self.conf_target), np.hstack(self.conf_pred), self.classes)
 
         avg_loss = torch.stack([m['val_loss'] for m in outputs]).mean()
-        avg_acc = torch.stack([m['val_acc'] for m in outputs]).mean()
         avg_top1 = torch.stack([m['val_top_1'] for m in outputs]).mean()
         avg_top5 = torch.stack([m['val_top_5'] for m in outputs]).mean()
         avg_mAP = torch.stack([m['val_mAP'] for m in outputs]).mean()
 
         logs = {
         'val_loss': avg_loss,
-        'val_acc': avg_acc,
         'val_top_1': avg_top1,
         'val_top_5': avg_top5,
         'val_mAP' : avg_mAP}
@@ -427,10 +426,11 @@ if __name__ == '__main__':
    
     trainer = pl.Trainer(
         default_root_dir='/home/sgurram/Projects/audio_transformer_supervised/audio_features_transformers_ablations/good-checkpoint', 
-        gpus=1, 
+        gpus=2, 
         max_epochs=50, 
         logger=wandb_logger, 
-        accumulate_grad_batches=400)    
+        accumulate_grad_batches=800,
+        distributed_backend='ddp')    
 
     # trainer = pl.Trainer(
     #     default_root_dir='/home/sgurram/good-checkpoint/', 
