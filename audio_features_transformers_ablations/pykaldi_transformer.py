@@ -286,6 +286,26 @@ class Net(pl.LightningModule):
 
         return samples, labels, mask
 
+    #Implementation taken from aai/utils/torch/metrics.py
+    def _compute_mAP(self, logits, targets, threshold):  
+        return torch.masked_select((logits > threshold) == (targets > threshold), (targets > threshold)).float().mean()
+
+    #Implementation taken from aai/utils/torch/metrics.py
+    def compute_mAP(self, logits, targets, thresholds=(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9)): 
+        return torch.mean(torch.stack([self._compute_mAP(logits, targets, t) for t in thresholds]))
+
+    #Implementation taken from aai/utils/torch/metrics.py
+    def compute_accuracy(self, logits, ground_truth, top_k=1):
+        """Computes the precision@k for the specified values of k.
+        https://github.com/bearpaw/pytorch-classification/blob/cc9106d598ff1fe375cc030873ceacfea0499d77/utils/eval.py
+        """
+        batch_size = ground_truth.size(0)
+        _, pred = logits.topk(top_k, 1, True, True)
+        pred = pred.t()
+        correct = pred.eq(ground_truth.reshape(1, -1).expand_as(pred))
+        correct_k = correct[:top_k].reshape(-1).float().sum(0)
+        return correct_k.mul_(100.0 / batch_size)
+
     def train_dataloader(self):
         self.train_loader = torch.utils.data.DataLoader(dataset=self.train_dataset, 
                                                         batch_size=self.batch_size, 
@@ -326,12 +346,23 @@ class Net(pl.LightningModule):
         acc = torch.tensor(correct/self.batch_size)
         # if correct > 0:
         #     print(acc)
-        logs = {'val_loss': temp_loss, 'val_acc': acc}
+        top_1_accuracy = self.compute_accuracy(output, target, top_k=1)
+        top_5_accuracy = self.compute_accuracy(output, target, top_k=5)
+
+        mAP = self.compute_mAP(torch.nn.functional.sigmoid(output),
+                          torch.nn.functional.one_hot(target, num_classes=self.num_classes))
+
+        logs = {
+            'val_loss': temp_loss,
+            'val_acc': acc,
+            'val_top_1': top_1_accuracy,
+            'val_top_5': top_5_accuracy,
+            'val_mAP' : mAP}
 
         # if self.counter >= self.num_epochs-1:
             # wandb.sklearn.plot_confusion_matrix(target.cpu().numpy(), pred.flatten().cpu().numpy(), self.classes)
 
-        return {'val_loss': temp_loss, 'val_acc': acc}
+        return logs
     
     def validation_epoch_end(self, outputs):
         # print(outputs)
@@ -342,7 +373,17 @@ class Net(pl.LightningModule):
 
         avg_loss = torch.stack([m['val_loss'] for m in outputs]).mean()
         avg_acc = torch.stack([m['val_acc'] for m in outputs]).mean()
-        logs = {'val_loss': avg_loss, 'val_acc': avg_acc}
+        avg_top1 = torch.stack([m['val_top_1'] for m in outputs]).mean()
+        avg_top5 = torch.stack([m['val_top_5'] for m in outputs]).mean()
+        avg_mAP = torch.stack([m['val_mAP'] for m in outputs]).mean()
+
+        logs = {
+        'val_loss': avg_loss,
+        'val_acc': avg_acc,
+        'val_top_1': avg_top1,
+        'val_top_5': avg_top5,
+        'val_mAP' : avg_mAP}
+
         return {'val_loss': avg_loss, 'log': logs}
     
     def configure_optimizers(self):
@@ -357,9 +398,10 @@ class Net(pl.LightningModule):
 
 
 if __name__ == '__main__':
-    
 
     model = Net()
+    wandb_logger.watch(model, log='gradients', log_freq=400)
+
     # wandb_logger.watch(model, log='gradients', log_freq=10)
     # trainer = pl.Trainer(gpus=4, max_epochs=2, logger=wandb_logger)
     # trainer = pl.Trainer(default_root_dir='/home/sgurram/good-checkpoint/', gpus=4, max_epochs=100, logger=wandb_logger, precision=16)
@@ -375,14 +417,20 @@ if __name__ == '__main__':
     #     accumulate_grad_batches=1, 
     #     distributed_backend='ddp')
 
+    # trainer = pl.Trainer(
+    #     default_root_dir='/home/sgurram/Projects/audio_transformer_supervised/audio_features_transformers_ablations/good-checkpoint', 
+    #     gpus=1, 
+    #     overfit_batches=10, 
+    #     max_epochs=5, 
+    #     logger=wandb_logger, 
+    #     accumulate_grad_batches=1)
    
     trainer = pl.Trainer(
         default_root_dir='/home/sgurram/Projects/audio_transformer_supervised/audio_features_transformers_ablations/good-checkpoint', 
         gpus=1, 
-        overfit_batches=10, 
-        max_epochs=5, 
+        max_epochs=50, 
         logger=wandb_logger, 
-        accumulate_grad_batches=1)    
+        accumulate_grad_batches=400)    
 
     # trainer = pl.Trainer(
     #     default_root_dir='/home/sgurram/good-checkpoint/', 
